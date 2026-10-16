@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: byawasaya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: byawasaya
+      POSTGRES_USER: byawasaya
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      TZ: Asia/Kathmandu
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - byawasaya_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U byawasaya -d byawasaya"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: byawasaya-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-byawasaya-local}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - byawasaya_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: byawasaya-mailhog
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+  redis:
+    image: redis:7-alpine
+    container_name: byawasaya-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - byawasaya_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim
+    container_name: byawasaya-clamav
+    restart: unless-stopped
+    environment:
+      CLAMD_CONF_StreamMaxLength: 16M
+      CLAMD_CONF_MaxFileSize: 16M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - byawasaya_clamav_data:/var/lib/clamav
+
+volumes:
+  byawasaya_postgres_data:
+  byawasaya_redis_data:
+  byawasaya_minio_data:
+  byawasaya_clamav_data:

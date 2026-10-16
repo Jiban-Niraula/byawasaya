@@ -1,0 +1,6 @@
+package com.byawasaya.platform.audit;
+import java.util.List; import java.util.Map; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.web.bind.annotation.*;
+@RestController @RequestMapping("/api/platform/audit-logs") public class AuditController {
+ private final JdbcTemplate jdbc; public AuditController(JdbcTemplate jdbc){this.jdbc=jdbc;}
+ @GetMapping public List<Map<String,Object>> list(@RequestParam(defaultValue="100")int limit,@RequestParam(required=false)String actor,@RequestParam(required=false)String action){int bounded=Math.max(1,Math.min(limit,500));StringBuilder sql=new StringBuilder("SELECT id,actor_username AS \"actorUsername\",actor_role AS \"actorRole\",tenant_id AS \"tenantId\",action,target_type AS \"targetType\",target_id AS \"targetId\",outcome,created_at AS \"createdAt\" FROM audit_logs WHERE 1=1");java.util.List<Object> args=new java.util.ArrayList<>();if(actor!=null&&!actor.isBlank()){sql.append(" AND lower(actor_username)=lower(?)");args.add(actor.trim());}if(action!=null&&!action.isBlank()){sql.append(" AND action=?");args.add(action.trim());}sql.append(" ORDER BY created_at DESC LIMIT ").append(bounded);return jdbc.queryForList(sql.toString(),args.toArray());}
+}

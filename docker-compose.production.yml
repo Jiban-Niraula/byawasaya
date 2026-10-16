@@ -1,0 +1,174 @@
+name: byawasaya-production
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-byawasaya}
+      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME in .env.production}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
+      TZ: Asia/Kathmandu
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt: ["no-new-privileges:true"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.production}
+    entrypoint: ["/opt/byawasaya/redis-entrypoint.sh"]
+    volumes:
+      - production_redis_data:/data
+      - ./ops/redis/entrypoint.sh:/opt/byawasaya/redis-entrypoint.sh:ro
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt: ["no-new-privileges:true"]
+
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim
+    restart: unless-stopped
+    environment:
+      CLAMD_CONF_StreamMaxLength: 16M
+      CLAMD_CONF_MaxFileSize: 16M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+    volumes:
+      - production_clamav_data:/var/lib/clamav
+    networks: [private]
+    security_opt: ["no-new-privileges:true"]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-byawasaya}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env.production}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.production}
+      SUPERADMIN_BOOTSTRAP_ENABLED: ${SUPERADMIN_BOOTSTRAP_ENABLED:-false}
+      SUPERADMIN_USERNAME: ${SUPERADMIN_USERNAME:-}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+      FRONTEND_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      BACKEND_PUBLIC_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      DOMAIN_NAME: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      MAIL_HOST: ${MAIL_HOST:?Set MAIL_HOST in .env.production}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:?Set MAIL_USERNAME in .env.production}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?Set MAIL_PASSWORD in .env.production}
+      MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM in .env.production}
+      MAIL_SMTP_AUTH: "true"
+      MAIL_STARTTLS: "true"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env.production}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env.production}
+      APP_STORAGE_ENABLED: "true"
+      S3_ENDPOINT: ${S3_ENDPOINT:?Set HTTPS S3_ENDPOINT in .env.production}
+      S3_REGION: ${S3_REGION:-ap-south-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY in .env.production}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env.production}
+      S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET in .env.production}
+      S3_PATH_STYLE: ${S3_PATH_STYLE:-false}
+      APP_STORAGE_ENCRYPTION_KEY_BASE64: ${APP_STORAGE_ENCRYPTION_KEY_BASE64:?Set APP_STORAGE_ENCRYPTION_KEY_BASE64 in .env.production}
+      APP_PAYMENT_ENCRYPTION_KEY_BASE64: ${APP_PAYMENT_ENCRYPTION_KEY_BASE64:?Set APP_PAYMENT_ENCRYPTION_KEY_BASE64 in .env.production}
+      APP_PLATFORM_MFA_ENCRYPTION_KEY_BASE64: ${APP_PLATFORM_MFA_ENCRYPTION_KEY_BASE64:?Set APP_PLATFORM_MFA_ENCRYPTION_KEY_BASE64 in .env.production}
+      MALWARE_SCANNER_HOST: clamav
+      MALWARE_SCANNER_PORT: 3310
+      AUTH_COOKIE_SECURE: "true"
+      DEMO_SEED: "false"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    networks: [private, edge]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 20s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_DOMAIN: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+    restart: unless-stopped
+    networks: [edge]
+    security_opt: ["no-new-privileges:true"]
+
+  edge:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      NGINX_ENVSUBST_FILTER: ^DOMAIN_NAME$
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./ops/certs/${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}:/etc/nginx/certs:ro
+    depends_on:
+      backend: { condition: service_healthy }
+      frontend: { condition: service_started }
+    networks: [edge]
+    security_opt: ["no-new-privileges:true"]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=15d"]
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - production_prometheus_data:/prometheus
+    networks: [private]
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    restart: unless-stopped
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in .env.production}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env.production}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["production_grafana_data:/var/lib/grafana"]
+    networks: [private]
+
+networks:
+  private:
+    internal: true
+  edge: {}
+
+volumes:
+  production_postgres_data:
+  production_redis_data:
+  production_clamav_data:
+  production_prometheus_data:
+  production_grafana_data:

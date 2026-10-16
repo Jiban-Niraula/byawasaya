@@ -1,0 +1,25 @@
+# IDE
+.idea/
+.vscode/
+
+# Build output and dependencies
+backend/target/
+frontend/node_modules/
+frontend/dist/
+backups/
+
+# Environment files (retain example templates only)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Private keys and credential material
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db

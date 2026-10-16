@@ -1,0 +1,190 @@
+spring:
+  application:
+    name: byawasaya-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5433/byawasaya}
+    username: ${DB_USERNAME:byawasaya}
+    password: ${DB_PASSWORD:byawasaya_dev}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:validate}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS:false}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:local-placeholder-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:local-placeholder-client-secret}
+            scope: openid,profile,email
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${CACHE_TTL:PT60S}
+      cache-null-values: false
+
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+
+app:
+  auth:
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    customer-cookie-domain: ${AUTH_CUSTOMER_COOKIE_DOMAIN:}
+    mfa-encryption-key-base64: ${APP_PLATFORM_MFA_ENCRYPTION_KEY_BASE64:}
+    superadmin:
+      bootstrap-enabled: ${SUPERADMIN_BOOTSTRAP_ENABLED:true}
+      username: ${SUPERADMIN_USERNAME:superadmin}
+      password: ${SUPERADMIN_PASSWORD:}
+      phone: ${SUPERADMIN_PHONE:}
+    whatsapp:
+      enabled: ${WHATSAPP_MFA_ENABLED:false}
+      graph-api-url: ${WHATSAPP_GRAPH_API_URL:https://graph.facebook.com}
+      graph-api-version: ${WHATSAPP_GRAPH_API_VERSION:v23.0}
+      phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+      access-token: ${WHATSAPP_ACCESS_TOKEN:}
+      template-name: ${WHATSAPP_TEMPLATE_NAME:platform_login_otp}
+      template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
+    email-mfa:
+      enabled: ${EMAIL_MFA_ENABLED:true}
+      from: ${EMAIL_MFA_FROM:${MAIL_FROM:no-reply@byawasaya.local}}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  backend-public-url: ${BACKEND_PUBLIC_URL:${FRONTEND_URL:http://localhost:5173}}
+  tenant:
+    base-domain: ${DOMAIN_NAME:}
+    migrate-legacy-on-startup: ${TENANT_MIGRATE_LEGACY_ON_STARTUP:false}
+  mail:
+    from: ${MAIL_FROM:no-reply@byawasaya.local}
+  storage:
+    enabled: ${APP_STORAGE_ENABLED:true}
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:ap-south-1}
+    access-key: ${S3_ACCESS_KEY:byawasaya-local}
+    secret-key: ${S3_SECRET_KEY:replace-this-local-minio-secret}
+    bucket: ${S3_BUCKET:byawasaya-private}
+    encryption-key-base64: ${APP_STORAGE_ENCRYPTION_KEY_BASE64:}
+    path-style: ${S3_PATH_STYLE:true}
+  payment:
+    encryption-key-base64: ${APP_PAYMENT_ENCRYPTION_KEY_BASE64:${APP_STORAGE_ENCRYPTION_KEY_BASE64:}}
+  security:
+    malware-scanner:
+      host: ${MALWARE_SCANNER_HOST:localhost}
+      port: ${MALWARE_SCANNER_PORT:3310}
+      connect-timeout-ms: ${MALWARE_SCANNER_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${MALWARE_SCANNER_READ_TIMEOUT_MS:30000}
+      max-bytes: 8388608
+      max-concurrent-scans: 2
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  demo:
+    seed: ${DEMO_SEED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+app:
+  auth:
+    cookie-secure: true
+    cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    customer-cookie-domain: .${DOMAIN_NAME}
+    superadmin:
+      bootstrap-enabled: ${SUPERADMIN_BOOTSTRAP_ENABLED:false}
+  frontend-url: ${FRONTEND_URL}
+  backend-public-url: ${BACKEND_PUBLIC_URL:${FRONTEND_URL}}
+  tenant:
+    base-domain: ${DOMAIN_NAME}
+  mail:
+    from: ${MAIL_FROM}
+  storage:
+    enabled: true
+    endpoint: ${S3_ENDPOINT}
+    region: ${S3_REGION:ap-south-1}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    bucket: ${S3_BUCKET}
+    encryption-key-base64: ${APP_STORAGE_ENCRYPTION_KEY_BASE64}
+    path-style: ${S3_PATH_STYLE:false}
+  payment:
+    encryption-key-base64: ${APP_PAYMENT_ENCRYPTION_KEY_BASE64}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  demo:
+    seed: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
