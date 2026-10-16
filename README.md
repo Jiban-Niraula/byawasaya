@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Byawasaya — commerce SaaS for Nepal
 
 Byawasaya is a Nepal-focused multi-tenant commerce SaaS for retailers and wholesalers. It is built with Java 21, Spring Boot, React/TypeScript, PostgreSQL, Redis and Docker, with platform administration, tenant workspaces, customer accounts, public storefronts and order workflows.
@@ -172,3 +173,6 @@ If the old data is already present in the PostgreSQL shared tables, back up the 
 The Vite development server proxies `/api`, `/oauth2`, and `/login/oauth2` requests to `http://localhost:8080` by default. Set `VITE_DEV_API_PROXY` when the backend runs elsewhere. `VITE_API_BASE_URL` remains available when using a deliberately separate API origin. Checkout requires an `Idempotency-Key` header; do not remove it from API clients.
 
 Every platform sign-in requires a second factor. Unenrolled platform accounts use email OTP and can enter administration after verifying it. Authenticator enrollment is optional; accounts with TOTP enabled use TOTP or a single-use recovery code.
+=======
+# byawasaya
+>>>>>>> 9e744eb48fd73cfd24773737c88e56fc9e81952f
